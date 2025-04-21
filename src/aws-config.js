@@ -12,8 +12,8 @@ const awsConfig = {
         oauth: {
           domain: 'eu-north-16iqnvmpou.auth.eu-north-1.amazoncognito.com',
           scopes: ['email', 'openid', 'profile'],
-          redirectSignIn: ['http://localhost:3000/auth/callback'],
-          redirectSignOut: ['http://localhost:3000/login'],
+          redirectSignIn: ['https://main.d38r1et6tyij50.amplifyapp.com/auth/callback'],
+          redirectSignOut: ['https://main.d38r1et6tyij50.amplifyapp.com/login'],
           responseType: 'code'
         }
       }
