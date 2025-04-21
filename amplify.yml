@@ -2,14 +2,10 @@ version: 1
 frontend:
   phases:
     preBuild:
--     commands:
--       - npm ci
-+     commands:
-+       # install & switch to Node 20
-+       - nvm install 20
-+       - nvm use 20
-+       # now install your deps
-+       - npm ci
+      commands:
+        - nvm install 20
+        - nvm use 20
+        - npm ci
     build:
       commands:
         - npm run build
