@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../utils/AuthContext';
-import { fetchPackages, debugPackageStructure, createShippingOrder } from '../api/package';
+import { fetchPackages, debugPackageStructure, createShippingOrder, schedulePickup } from '../api/package';
 import '../styles/main.css';
 
 /**
@@ -17,8 +17,39 @@ const PackagePage = () => {
   const [showModal, setShowModal] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [isShipping, setIsShipping] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [pickupDate, setPickupDate] = useState(null);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [itemsCount, setItemsCount] = useState('');
+  const [totalWeight, setTotalWeight] = useState('');
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  
+  // Get tomorrow's date for minimum selectable date
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+  };
+  
+  // Check if a date is a weekend
+  const isWeekend = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDay();
+    return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
+  };
+  
+  // Disable weekends in the date picker
+  const disableWeekends = (e) => {
+    const date = new Date(e.target.value);
+    if (isWeekend(date)) {
+      window.alert('Weekends are not available for pickup. Please select a weekday.');
+      e.target.value = '';
+      setPickupDate(null);
+    } else {
+      setPickupDate(e.target.value);
+    }
+  };
   
   // Fetch packages on component mount
   useEffect(() => {
@@ -156,24 +187,66 @@ const PackagePage = () => {
     }
   };
 
+  // Close calendar modal
+  const closeCalendarModal = () => {
+    setShowCalendar(false);
+    setPickupDate(null);
+    setItemsCount('');
+    setTotalWeight('');
+  };
+
+  // Submit pickup schedule
+  const submitPickupSchedule = async () => {
+    if (!pickupDate || !itemsCount || !totalWeight) {
+      window.alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setIsScheduling(true);
+      console.log(`Scheduling pickup for date: ${pickupDate}, items: ${itemsCount}, weight: ${totalWeight}kg`);
+      
+      const result = await schedulePickup(null, pickupDate, itemsCount, totalWeight);
+      console.log('Pickup scheduled:', result);
+      
+      window.alert(`Pickup has been scheduled for ${new Date(pickupDate).toLocaleDateString()}`);
+      closeCalendarModal();
+    } catch (err) {
+      console.error('Error scheduling pickup:', err);
+      window.alert(`Failed to schedule pickup: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
   return (
     <div className="orders-page">
       <Navbar />
       <div className="container">
         <div className="orders-header">
           <h1>Your Packages</h1>
-          {error && <div className="alert alert-danger">{error}</div>}
-          {process.env.NODE_ENV === 'development' && (
+          <div className="header-actions">
             <button 
-              className="btn btn-debug" 
-              onClick={handleDebug}
-              disabled={debugMode}
-              style={{ marginLeft: '10px', fontSize: '0.8rem', padding: '5px 10px' }}
+              className="btn btn-pickup"
+              onClick={() => setShowCalendar(true)}
             >
-              {debugMode ? 'Debugging...' : 'Debug Package Structure'}
+              Schedule Pickup
             </button>
-          )}
+            
+            {process.env.NODE_ENV === 'development' && (
+              <button 
+                className="btn btn-debug" 
+                onClick={handleDebug}
+                disabled={debugMode}
+                style={{ marginLeft: '10px', fontSize: '0.8rem', padding: '5px 10px' }}
+              >
+                {debugMode ? 'Debugging...' : 'Debug Package Structure'}
+              </button>
+            )}
+          </div>
         </div>
+        
+        {error && <div className="alert alert-danger">{error}</div>}
   
         {loading ? (
           <div className="loading-container">
@@ -200,10 +273,8 @@ const PackagePage = () => {
                   <th>Package ID</th>
                   <th>Order ID</th>
                   <th>Created</th>
-                  <th>Carrier</th>
-                  <th>Items</th>
-                  <th>Status</th>
-                  <th>Est. Delivery</th>
+                  <th>Carrier</th>                  
+                  <th>Status</th>                 
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -215,21 +286,10 @@ const PackagePage = () => {
                     <td>{formatDate(pkg.createTime)}</td>
                     <td>{pkg.carrier}</td>
                     <td>
-                      {typeof pkg.items === 'number' 
-                        ? `${pkg.items} items` 
-                        : Array.isArray(pkg.items) 
-                          ? `${pkg.items.length} items` 
-                          : '0 items'} 
-                      ({pkg.weight && typeof pkg.weight === 'string' 
-                        ? pkg.weight 
-                        : '0 kg'})
-                    </td>
-                    <td>
                       <span className={`status-badge ${(pkg.status || '').toLowerCase().replace(' ', '-')}`}>
                         {pkg.status}
                       </span>
                     </td>
-                    <td>{formatDate(pkg.estimatedDelivery)}</td>
                     <td className="actions-cell">
                       <button 
                         className="btn btn-details"
@@ -360,6 +420,70 @@ const PackagePage = () => {
                   </button>
                 )}
                 <button className="btn btn-close" onClick={closeModal}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Pickup Calendar Modal with additional fields */}
+        {showCalendar && (
+          <div className="modal-overlay">
+            <div className="modal-container calendar-modal">
+              <div className="modal-header">
+                <h2>Schedule Pickup</h2>
+                <button className="modal-close" onClick={closeCalendarModal}>×</button>
+              </div>
+              <div className="modal-body">
+                <p>Please enter the details for your pickup request</p>
+                <div className="pickup-calendar">
+                  <label htmlFor="pickup-date">Pickup Date:</label>
+                  <input 
+                    type="date" 
+                    id="pickup-date"
+                    min={getTomorrowDate()}
+                    value={pickupDate || ''}
+                    onChange={disableWeekends}
+                    required
+                    className="date-picker"
+                  />
+                  <small className="date-hint">Note: Weekends are not available for pickup</small>
+                </div>
+                
+                {/* Fields for items count and weight */}
+                <div className="pickup-items">
+                  <label htmlFor="items-count">Number of Items:</label>
+                  <input 
+                    type="number" 
+                    id="items-count"
+                    min="1"
+                    value={itemsCount}
+                    onChange={(e) => setItemsCount(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="pickup-weight">
+                  <label htmlFor="total-weight">Total Weight (kg):</label>
+                  <input 
+                    type="number" 
+                    id="total-weight"
+                    min="0.1"
+                    step="0.1"
+                    value={totalWeight}
+                    onChange={(e) => setTotalWeight(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  className="btn btn-schedule"
+                  onClick={submitPickupSchedule}
+                  disabled={isScheduling || !pickupDate || !itemsCount || !totalWeight}
+                >
+                  {isScheduling ? 'Scheduling...' : 'Confirm Schedule'}
+                </button>
+                <button className="btn btn-close" onClick={closeCalendarModal}>Cancel</button>
               </div>
             </div>
           </div>

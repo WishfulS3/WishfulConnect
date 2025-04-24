@@ -607,11 +607,65 @@ export const createShippingOrder = async (packageId) => {
   }
 };
 
+/**
+ * Schedule a pickup for packages
+ * @param {string|null} packageId - The ID of the package (optional)
+ * @param {string} pickupDate - The date for pickup in YYYY-MM-DD format
+ * @param {string|number} itemsCount - Number of items to be picked up
+ * @param {string|number} totalWeight - Total weight in kg
+ * @returns {Promise<Object>} - Response with confirmation details
+ */
+export const schedulePickup = async (packageId, pickupDate, itemsCount, totalWeight) => {
+  try {
+    console.log(`API: Scheduling pickup for date ${pickupDate}, items: ${itemsCount}, weight: ${totalWeight}kg`);
+    
+    // Get current user
+    const user = await getCurrentUser();
+    const userId = user.sub || user.userId || user.username;
+    
+    // Prepare the payload for the Lambda function
+    const payload = {
+      userId: userId,
+      pickupDate: pickupDate,
+      itemsCount: parseInt(itemsCount, 10),
+      totalWeight: parseFloat(totalWeight),
+      packageId: packageId // This can be null if scheduling a general pickup
+    };
+    
+    console.log('Sending pickup schedule request with payload:', payload);
+    
+    // Call your Lambda function here - replace with your actual Lambda endpoint
+    const response = await fetch('https://bqvtrwbs7h.execute-api.eu-north-1.amazonaws.com/default/wish_get_schedule', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Server responded with ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Pickup scheduled successfully:', data);
+    
+    // Return the response data
+    return data.data || data;
+  } catch (error) {
+    console.error('Error scheduling pickup:', error);
+    throw error;
+  }
+};
+
 export default {
   fetchPackages,
   fetchPackageById,
   getPackageStatistics,
   searchPackages,
   debugPackageStructure,
-  getSchema
+  getSchema,
+  createShippingOrder,
+  schedulePickup
 };

@@ -750,3 +750,94 @@ body {
   background-color: #cccccc;
   cursor: not-allowed;
 }
+
+/* Calendar Modal Styles */
+.calendar-modal {
+  max-width: 500px;
+}
+
+.pickup-calendar {
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-calendar label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+/* Add these styles to your CSS file */
+.date-picker::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+.date-hint {
+  display: block;
+  margin-top: 5px;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* This will style the date input */
+.pickup-calendar {
+  margin-bottom: 15px;
+}
+
+.pickup-calendar input[type="date"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.btn-pickup {
+  background-color: #4a8cf7;
+  color: white;
+  margin-left: 8px;
+}
+
+.btn-schedule {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-schedule:disabled {
+  background-color: #80c590;
+  cursor: not-allowed;
+}
+
+/* Header actions container */
+.orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Pickup form styles */
+.pickup-items,
+.pickup-weight {
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-items label,
+.pickup-weight label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.pickup-items input,
+.pickup-weight input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
