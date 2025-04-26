@@ -393,6 +393,19 @@ const PackagePage = () => {
                       <span className="detail-value">{formatDate(selectedPackage.updateTime)}</span>
                     </div>
                   )}
+                  {/* Always show shipping label section */}
+                  <div className="detail-row">
+                    <span className="detail-label">Shipping Label:</span>
+                    <span className="detail-value">
+                      {selectedPackage.label_url ? (
+                        <a href={selectedPackage.label_url} target="_blank" rel="noopener noreferrer">
+                          View Shipping Label
+                        </a>
+                      ) : (
+                        "No shipping label available"
+                      )}
+                    </span>
+                  </div>
                   {selectedPackage.notes && (
                     <div className="detail-row">
                       <span className="detail-label">Notes:</span>

@@ -81,6 +81,7 @@ export const fetchPackages = async () => {
             items
             shopId
             updateTime
+            label_url
           }
         }
       }
@@ -235,6 +236,8 @@ export const fetchPackages = async () => {
         updateTime: pkg.updateTime 
           ? new Date(parseInt(pkg.updateTime, 10)).toISOString()
           : null,
+        // Check for both labelUrl and label_url
+        label_url: pkg.label_url || pkg.label_url || null,
         // Store the raw data for detailed view
         rawData: pkg
       };
@@ -284,6 +287,7 @@ export const fetchPackageById = async (packageId) => {
           trackingInfo
           trackingNumber
           updateTime
+          label_url
         }
       }
     `;
@@ -429,6 +433,7 @@ export const fetchPackageById = async (packageId) => {
       trackingNumber: pkg.trackingNumber || 'N/A',
       updateTime: formatDate(pkg.updateTime),
       weight: weight,
+      label_url: pkg.label_url || null,
       // Store the raw data
       rawData: pkg
     };
