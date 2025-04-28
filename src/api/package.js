@@ -48,208 +48,310 @@ const executeGraphQL = async (query, variables = {}) => {
 };
 
 /**
- * Fetch packages for the current user
- * @returns {Promise<Array>} Promise resolving to an array of package objects
+ * Fetch packages for the current user with pagination
+ * @param {number} page - Page number (starting from 1)
+ * @param {number} limit - Number of items per page
+ * @param {string} nextToken - Token for pagination (optional)
+ * @returns {Promise<Object>} Promise resolving to an object with packages array and pagination info
  */
-export const fetchPackages = async () => {
+export const fetchPackages = async (page = 1, limit = 20, nextToken = null) => {
   try {
-    console.log('Starting fetchPackages function using direct fetch');
+    console.log(`Starting fetchPackages function using direct fetch (page ${page}, limit ${limit})`);
     
     // Get current user
     const user = await getCurrentUser();
     const userId = user.sub || user.userId || user.username;
     console.log('Extracted userId:', userId);
     
-    // Query for packages belonging to this user
-    const query = `
-      query ListPackages($userId: String!) {
-        listWishfulConnectPackages(filter: {
-          userId: {
-            eq: $userId
-          }
-        }) {
-          items {
-            packageId
-            userId
-            createTime
-            orderIds
-            shippingProvider
-            status
-            trackingNumber
-            estimatedDeliveryDate
-            recipient_address
-            items
-            shopId
-            updateTime
-            label_url
-          }
-        }
-      }
-    `;
-    
-    const response = await executeGraphQL(query, { userId });
-    
-    // Check if response.data exists
-    if (!response.data) {
-      console.error('Response data is null or undefined');
-      return [];
+    // Initialize or get the cached packages
+    if (!window.cachedPackages) {
+      window.cachedPackages = [];
+      window.hasMorePackages = true;
+      window.lastFetchToken = null;
     }
     
-    // Check if listWishfulConnectPackages exists
-    if (!response.data.listWishfulConnectPackages) {
-      console.error('listWishfulConnectPackages is missing from response');
-      return [];
+    // Calculate how many more packages we need to fetch
+    const requiredPackages = page * limit;
+    
+    // Fetch more packages if needed and we have more to fetch
+    while (window.cachedPackages.length < requiredPackages && window.hasMorePackages) {
+      const result = await fetchPackagesWithToken(
+        userId, 
+        100, // Fetch in larger batches for efficiency
+        window.lastFetchToken
+      );
+      
+      // Add new packages to our cache
+      window.cachedPackages = [...window.cachedPackages, ...result.packages];
+      
+      // Sort the entire cache by createTime
+      window.cachedPackages.sort((a, b) => {
+        if (!a.createTime) return 1;
+        if (!b.createTime) return -1;
+        return new Date(b.createTime) - new Date(a.createTime);
+      });
+      
+      // Remove duplicates (by packageId)
+      window.cachedPackages = window.cachedPackages.filter(
+        (pkg, index, self) => index === self.findIndex(p => p.id === pkg.id)
+      );
+      
+      // Update token and check if we have more
+      window.lastFetchToken = result.nextToken;
+      window.hasMorePackages = result.nextToken && result.nextToken !== 'end';
+      
+      if (!window.hasMorePackages) {
+        console.log('No more packages to fetch');
+        break;
+      }
     }
     
-    // Get all packages
-    const packages = response.data.listWishfulConnectPackages.items || [];
-    console.log(`Retrieved ${packages.length} packages for user ${userId}`);
+    // Calculate total pages based on what we know
+    const totalPages = Math.ceil(
+      window.hasMorePackages ? 
+        Math.max(window.cachedPackages.length + 1, requiredPackages) / limit : 
+        window.cachedPackages.length / limit
+    );
     
-    if (packages.length === 0) {
-      console.log('No packages found for this user.');
-      return [];
-    }
+    // Get packages for the current page
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const packagesForPage = window.cachedPackages.slice(startIndex, endIndex);
     
-    // Format packages for display
-    const formattedPackages = packages.map(pkg => {
-      // Parse orderIds if it's a string or array
-      let orderIdsArray = [];
-      try {
-        if (typeof pkg.orderIds === 'string') {
-          orderIdsArray = JSON.parse(pkg.orderIds);
-        } else if (Array.isArray(pkg.orderIds)) {
-          orderIdsArray = pkg.orderIds;
-        }
-      } catch (e) {
-        console.error(`Error parsing orderIds for package ${pkg.packageId}:`, e);
-      }
-      
-      // Parse recipient_address if it's a string or object
-      let addressObj = {};
-      try {
-        if (typeof pkg.recipient_address === 'string') {
-          addressObj = JSON.parse(pkg.recipient_address);
-        } else if (typeof pkg.recipient_address === 'object') {
-          addressObj = pkg.recipient_address;
-        }
-      } catch (e) {
-        console.error(`Error parsing recipient_address for package ${pkg.packageId}:`, e);
-      }
-      
-      // Parse items if it's a string or array
-      let itemsArray = [];
-      let itemsCount = 0;
-      try {
-        if (typeof pkg.items === 'string') {
-          // If it's an empty string or just "[]", treat as empty array
-          if (!pkg.items || pkg.items.trim() === '[]' || pkg.items.trim() === '') {
-            itemsArray = [];
-          } else {
-            // Try to parse the JSON string
-            itemsArray = JSON.parse(pkg.items);
-          }
-        } else if (Array.isArray(pkg.items)) {
-          itemsArray = pkg.items;
-        } else {
-          // If it's neither a string nor an array, default to empty array
-          itemsArray = [];
-        }
-        
-        // Set the items count
-        itemsCount = Array.isArray(itemsArray) ? itemsArray.length : 0;
-      } catch (e) {
-        console.error(`Error parsing items for package ${pkg.packageId}:`, e);
-        // Default to empty array if parsing fails
-        itemsArray = [];
-        itemsCount = 0;
-      }
-      
-      // Format the address from recipient_address
-      let address = 'No address provided';
-      if (addressObj.fulladdress) {
-        address = addressObj.fulladdress;
-      } else {
-        const addressParts = [
-          addressObj.name,
-          addressObj.address1,
-          addressObj.address2,
-          addressObj.address3,
-          addressObj.address4,
-          addressObj.zipCode,
-          addressObj.region_code
-        ].filter(Boolean);
-        
-        if (addressParts.length > 0) {
-          address = addressParts.join(', ');
-        }
-      }
-      
-      // Format the dates
-      const createTimeDate = pkg.createTime 
-        ? new Date(parseInt(pkg.createTime, 10) * 1000).toISOString()
-        : null;
-        
-      const estimatedDeliveryDate = pkg.estimatedDeliveryDate
-        ? new Date(parseInt(pkg.estimatedDeliveryDate, 10) * 1000).toISOString()
-        : null;
-      
-      // Map status to more user-friendly values
-      let displayStatus = pkg.status || 'Processing';
-      if (displayStatus === 'TO_FULFILL') {
-        displayStatus = 'Processing';
-      } else if (displayStatus === 'FULFILLED') {
-        displayStatus = 'Shipped';
-      } else if (displayStatus === 'DELIVERED') {
-        displayStatus = 'Delivered';
-      }
-      
-      // Calculate weight safely
-      let weight = '0 kg';
-      try {
-        if (Array.isArray(itemsArray) && itemsArray.length > 0) {
-          const totalWeight = itemsArray.reduce((sum, item) => {
-            // Check if item exists and has a weight property
-            const itemWeight = item && typeof item.weight !== 'undefined' ? 
-              parseFloat(item.weight) || 0 : 0;
-            return sum + itemWeight;
-          }, 0);
-          weight = `${totalWeight} kg`;
-        }
-      } catch (e) {
-        console.error(`Error calculating weight for package ${pkg.packageId}:`, e);
-      }
-      
-      return {
-        id: pkg.packageId,
-        userId: pkg.userId,
-        createTime: createTimeDate,
-        orderIds: orderIdsArray,
-        orderId: orderIdsArray.length > 0 ? orderIdsArray[0] : 'N/A', // For display in table
-        address: address,
-        carrier: pkg.shippingProvider || 'N/A',
-        status: displayStatus,
-        trackingNumber: pkg.trackingNumber || 'N/A',
-        estimatedDelivery: estimatedDeliveryDate,
-        items: itemsCount,
-        weight: weight,
-        shopId: pkg.shopId || 'N/A',
-        updateTime: pkg.updateTime 
-          ? new Date(parseInt(pkg.updateTime, 10)).toISOString()
-          : null,
-        // Check for both labelUrl and label_url
-        label_url: pkg.label_url || pkg.label_url || null,
-        // Store the raw data for detailed view
-        rawData: pkg
-      };
-    });
+    console.log(`Returning page ${page} of at least ${totalPages} (${packagesForPage.length} packages)`);
     
-    console.log('Formatted packages:', formattedPackages);
-    return formattedPackages;
+    return {
+      packages: packagesForPage,
+      totalCount: window.cachedPackages.length,
+      currentPage: page,
+      totalPages,
+      hasNextPage: page < totalPages || window.hasMorePackages,
+      hasPreviousPage: page > 1
+    };
   } catch (error) {
     console.error('Error in fetchPackages:', error);
-    // Return empty array instead of throwing to prevent UI crashes
-    return [];
+    // Return empty result instead of throwing to prevent UI crashes
+    return { 
+      packages: [], 
+      totalCount: 0, 
+      currentPage: page, 
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false
+    };
   }
+};
+
+/**
+ * Helper function to fetch packages with a specific token
+ * @param {string} userId - User ID
+ * @param {number} limit - Number of items per page
+ * @param {string} token - Pagination token
+ * @returns {Promise<Object>} - Packages and next token
+ */
+const fetchPackagesWithToken = async (userId, limit, token) => {
+  const query = `
+    query ListPackages($userId: String!, $limit: Int!, $nextToken: String) {
+      listWishfulConnectPackages(filter: {
+        userId: {
+          eq: $userId
+        }
+      }, limit: $limit, nextToken: $nextToken) {
+        items {
+          packageId
+          userId
+          createTime
+          orderIds
+          shippingProvider
+          status
+          trackingNumber
+          estimatedDeliveryDate
+          recipient_address
+          items
+          shopId
+          updateTime
+          label_url
+        }
+        nextToken
+      }
+    }
+  `;
+  
+  // Increase the limit to ensure we get enough packages to sort properly
+  // We'll fetch more than we need and then slice after sorting
+  const response = await executeGraphQL(query, { 
+    userId, 
+    limit: limit * 2, // Fetch more items than needed to ensure proper sorting
+    nextToken: token 
+  });
+  
+  // Check if response.data exists
+  if (!response.data) {
+    console.error('Response data is null or undefined');
+    return { packages: [], nextToken: null };
+  }
+  
+  // Check if listWishfulConnectPackages exists
+  if (!response.data.listWishfulConnectPackages) {
+    console.error('listWishfulConnectPackages is missing from response');
+    return { packages: [], nextToken: null };
+  }
+  
+  // Get all packages
+  const allPackages = response.data.listWishfulConnectPackages.items || [];
+  const nextToken = response.data.listWishfulConnectPackages.nextToken;
+  
+  console.log(`Retrieved ${allPackages.length} packages for user ${userId}, nextToken: ${nextToken}`);
+  
+  // Format all packages (same formatting logic as before)
+  const formattedPackages = allPackages.map(pkg => {
+    // Parse orderIds if it's a string or array
+    let orderIdsArray = [];
+    try {
+      if (typeof pkg.orderIds === 'string') {
+        orderIdsArray = JSON.parse(pkg.orderIds);
+      } else if (Array.isArray(pkg.orderIds)) {
+        orderIdsArray = pkg.orderIds;
+      }
+    } catch (e) {
+      console.error(`Error parsing orderIds for package ${pkg.packageId}:`, e);
+    }
+    
+    // Parse recipient_address if it's a string or object
+    let addressObj = {};
+    try {
+      if (typeof pkg.recipient_address === 'string') {
+        addressObj = JSON.parse(pkg.recipient_address);
+      } else if (typeof pkg.recipient_address === 'object') {
+        addressObj = pkg.recipient_address;
+      }
+    } catch (e) {
+      console.error(`Error parsing recipient_address for package ${pkg.packageId}:`, e);
+    }
+    
+    // Parse items if it's a string or array
+    let itemsArray = [];
+    let itemsCount = 0;
+    try {
+      if (typeof pkg.items === 'string') {
+        // If it's an empty string or just "[]", treat as empty array
+        if (!pkg.items || pkg.items.trim() === '[]' || pkg.items.trim() === '') {
+          itemsArray = [];
+        } else {
+          // Try to parse the JSON string
+          itemsArray = JSON.parse(pkg.items);
+        }
+      } else if (Array.isArray(pkg.items)) {
+        itemsArray = pkg.items;
+      } else {
+        // If it's neither a string nor an array, default to empty array
+        itemsArray = [];
+      }
+      
+      // Set the items count
+      itemsCount = Array.isArray(itemsArray) ? itemsArray.length : 0;
+    } catch (e) {
+      console.error(`Error parsing items for package ${pkg.packageId}:`, e);
+      // Default to empty array if parsing fails
+      itemsArray = [];
+      itemsCount = 0;
+    }
+    
+    // Format the address from recipient_address
+    let address = 'No address provided';
+    if (addressObj.fulladdress) {
+      address = addressObj.fulladdress;
+    } else {
+      const addressParts = [
+        addressObj.name,
+        addressObj.address1,
+        addressObj.address2,
+        addressObj.address3,
+        addressObj.address4,
+        addressObj.zipCode,
+        addressObj.region_code
+      ].filter(Boolean);
+      
+      if (addressParts.length > 0) {
+        address = addressParts.join(', ');
+      }
+    }
+    
+    // Format the dates
+    const createTimeDate = pkg.createTime 
+      ? new Date(parseInt(pkg.createTime, 10) * 1000).toISOString()
+      : null;
+      
+    const estimatedDeliveryDate = pkg.estimatedDeliveryDate
+      ? new Date(parseInt(pkg.estimatedDeliveryDate, 10) * 1000).toISOString()
+      : null;
+    
+    // Map status to more user-friendly values
+    let displayStatus = pkg.status || 'Processing';
+    if (displayStatus === 'TO_FULFILL') {
+      displayStatus = 'Processing';
+    } else if (displayStatus === 'FULFILLED') {
+      displayStatus = 'Shipped';
+    } else if (displayStatus === 'DELIVERED') {
+      displayStatus = 'Delivered';
+    }
+    
+    // Calculate weight safely
+    let weight = '0 kg';
+    try {
+      if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+        const totalWeight = itemsArray.reduce((sum, item) => {
+          // Check if item exists and has a weight property
+          const itemWeight = item && typeof item.weight !== 'undefined' ? 
+            parseFloat(item.weight) || 0 : 0;
+          return sum + itemWeight;
+        }, 0);
+        weight = `${totalWeight} kg`;
+      }
+    } catch (e) {
+      console.error(`Error calculating weight for package ${pkg.packageId}:`, e);
+    }
+    
+    return {
+      id: pkg.packageId,
+      userId: pkg.userId,
+      createTime: pkg.createTime 
+        ? new Date(parseInt(pkg.createTime, 10) * 1000).toISOString()
+        : null,
+      orderIds: orderIdsArray,
+      orderId: orderIdsArray.length > 0 ? orderIdsArray[0] : 'N/A', // For display in table
+      address: address,
+      carrier: pkg.shippingProvider || 'N/A',
+      status: displayStatus,
+      trackingNumber: pkg.trackingNumber || 'N/A',
+      estimatedDelivery: estimatedDeliveryDate,
+      items: itemsCount,
+      weight: weight,
+      shopId: pkg.shopId || 'N/A',
+      updateTime: pkg.updateTime 
+        ? new Date(parseInt(pkg.updateTime, 10)).toISOString()
+        : null,
+      // Check for both labelUrl and label_url
+      label_url: pkg.label_url || pkg.label_url || null,
+      // Store the raw data for detailed view
+      rawData: pkg
+    };
+  });
+  
+  // Sort packages by createTime (newest first)
+  formattedPackages.sort((a, b) => {
+    if (!a.createTime) return 1;
+    if (!b.createTime) return -1;
+    return new Date(b.createTime) - new Date(a.createTime);
+  });
+  
+  // Take only the requested number of items after sorting
+  const limitedPackages = formattedPackages.slice(0, limit);
+  
+  return {
+    packages: limitedPackages,
+    nextToken: nextToken || 'end'
+  };
 };
 
 /**

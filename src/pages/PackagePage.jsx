@@ -22,6 +22,11 @@ const PackagePage = () => {
   const [isScheduling, setIsScheduling] = useState(false);
   const [itemsCount, setItemsCount] = useState('');
   const [totalWeight, setTotalWeight] = useState('');
+  // Add pagination state variables
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [packagesPerPage] = useState(20);
+  
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
@@ -51,6 +56,19 @@ const PackagePage = () => {
     }
   };
   
+  // Add pagination handler functions inside the component
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+  
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+  
   // Fetch packages on component mount
   useEffect(() => {
     const loadPackages = async () => {
@@ -58,9 +76,10 @@ const PackagePage = () => {
       
       try {
         setLoading(true);
-        const packagesData = await fetchPackages();
-        console.log("Fetched packages:", packagesData);
-        setPackages(packagesData);
+        const result = await fetchPackages(currentPage, packagesPerPage);
+        console.log("Fetched packages:", result);
+        setPackages(result.packages);
+        setTotalPages(result.totalPages);
         setError(null);
       } catch (err) {
         console.error('Error loading packages:', err);
@@ -71,7 +90,7 @@ const PackagePage = () => {
     };
     
     loadPackages();
-  }, [user]);
+  }, [user, currentPage, packagesPerPage]);
 
   // Redirect to login if not authenticated
   if (!user) {
@@ -156,32 +175,40 @@ const PackagePage = () => {
       setIsShipping(true);
       console.log(`Creating shipping order for package: ${packageId}`);
       
-      const result = await createShippingOrder(packageId);
-      console.log('Shipping order created:', result);
-      /*
-      // Update the package in the local state
-      setPackages(prevPackages => 
-        prevPackages.map(pkg => 
-          pkg.id === packageId 
-            ? { ...pkg, status: 'SHIPPED', trackingNumber: result.trackingNumber, carrier: result.carrier } 
-            : pkg
-        )
-      );
-      
-      // Update the selected package if it's currently displayed
+      // Update the selected package to show loading state
       if (selectedPackage && selectedPackage.id === packageId) {
         setSelectedPackage(prev => ({
           ...prev,
-          status: 'SHIPPED',
-          trackingNumber: result.trackingNumber,
-          carrier: result.carrier
+          isShipping: true
         }));
       }
-      */
+      
+      const result = await createShippingOrder(packageId);
+      console.log('Shipping order created:', result);
+      
       window.alert(`Package ${packageId} has been shipped successfully! Tracking number: ${result.trackingNumber}`);
+      
+      // Refresh packages list to show updated status
+      const packagesResult = await fetchPackages(currentPage, packagesPerPage);
+      setPackages(packagesResult.packages);
+      setTotalPages(packagesResult.totalPages);
+      
+      // Update the selected package if it's currently displayed
+      if (selectedPackage && selectedPackage.id === packageId) {
+        const updatedPackage = packagesResult.packages.find(p => p.id === packageId);
+        setSelectedPackage(updatedPackage || { ...selectedPackage, isShipping: false });
+      }
     } catch (err) {
       console.error('Error shipping package:', err);
       window.alert(`Failed to ship package: ${err.message || 'Unknown error'}`);
+      
+      // Reset shipping state on the selected package
+      if (selectedPackage && selectedPackage.id === packageId) {
+        setSelectedPackage(prev => ({
+          ...prev,
+          isShipping: false
+        }));
+      }
     } finally {
       setIsShipping(false);
     }
@@ -310,6 +337,27 @@ const PackagePage = () => {
                 ))}
               </tbody>
             </table>
+            
+            {/* Add pagination controls here, inside the component */}
+            <div className="pagination-controls">
+              <button 
+                className="btn btn-pagination" 
+                onClick={handlePrevPage} 
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="pagination-info">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                className="btn btn-pagination" 
+                onClick={handleNextPage} 
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
         
@@ -428,8 +476,16 @@ const PackagePage = () => {
                   <button 
                     className="btn btn-ship"
                     onClick={() => handleShipPackage(selectedPackage.id)}
+                    disabled={selectedPackage.isShipping || isShipping}
                   >
-                    Ship Package
+                    {selectedPackage.isShipping ? (
+                      <>
+                        <span className="spinner-small"></span>
+                        Creating Shipping Label...
+                      </>
+                    ) : (
+                      'Ship Package'
+                    )}
                   </button>
                 )}
                 <button className="btn btn-close" onClick={closeModal}>Close</button>
