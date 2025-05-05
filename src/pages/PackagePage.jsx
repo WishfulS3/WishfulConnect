@@ -186,7 +186,7 @@ const PackagePage = () => {
       const result = await createShippingOrder(packageId);
       console.log('Shipping order created:', result);
       
-      window.alert(`Package ${packageId} has been shipped successfully! Tracking number: ${result.trackingNumber}`);
+      window.alert(`Package ${packageId} has been shipped successfully!`);
       
       // Refresh packages list to show updated status
       const packagesResult = await fetchPackages(currentPage, packagesPerPage);
@@ -200,7 +200,7 @@ const PackagePage = () => {
       }
     } catch (err) {
       console.error('Error shipping package:', err);
-      window.alert(`Failed to ship package: ${err.message || 'Unknown error'}`);
+      window.alert('Failed to ship package, please try again.');
       
       // Reset shipping state on the selected package
       if (selectedPackage && selectedPackage.id === packageId) {
