@@ -116,7 +116,8 @@ const PackagePage = () => {
   // Handle tracking
   const handleViewTracking = (packageId, trackingNumber, carrier) => {
     if (!trackingNumber || trackingNumber === 'N/A') {
-      window.alert(`No tracking number available for package ${packageId}`);
+      // If no tracking number, still redirect to UPS tracking page
+      window.open('https://www.ups.com/track?loc=en_IT&requester=ST', '_blank');
       return;
     }
     
@@ -125,15 +126,15 @@ const PackagePage = () => {
     
     switch(carrier.toLowerCase()) {
       case 'ups':
-        trackingUrl = `https://www.ups.com/track?tracknum=${trackingNumber}`;
+        trackingUrl = `https://www.ups.com/track?loc=en_IT&requester=ST&tracknum=${trackingNumber}`;
         break;
       case 'sda':
         trackingUrl = `https://www.sda.it/wps/portal/Servizi/ricerca-spedizioni?tracking=${trackingNumber}`;
         break;
       default:
-        // If carrier is not recognized, just show an alert
-        window.alert(`Tracking details for package ${packageId}: ${trackingNumber} (${carrier})`);
-        return;
+        // For any other carrier, redirect to UPS tracking page
+        trackingUrl = `https://www.ups.com/track?loc=en_IT&requester=ST&tracknum=${trackingNumber}`;
+        break;
     }
     
     // Open tracking URL in a new tab
