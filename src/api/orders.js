@@ -128,7 +128,7 @@ export const fetchOrders = async () => {
         orderMap[item.orderId] = {
           id: item.orderId,
           date: item.createTime
-            ? new Date(parseInt(item.createTime, 10)).toISOString()
+            ? new Date(parseInt(item.createTime, 10) * 1000).toISOString() // Multiply by 1000 to convert seconds to milliseconds
             : new Date().toISOString(),
           status: item.status || 'Processing',
           items: [],
@@ -223,7 +223,7 @@ export const fetchOrderById = async (orderId) => {
     const order = {
       id: orderId,
       date: items[0].createTime
-        ? new Date(parseInt(items[0].createTime, 10)).toISOString()
+        ? new Date(parseInt(items[0].createTime, 10) * 1000).toISOString() // Multiply by 1000 to convert seconds to milliseconds
         : new Date().toISOString(),
       status: items[0].status || 'Processing',
       items: [],

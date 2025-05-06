@@ -436,12 +436,7 @@ const PackagePage = () => {
                       <span className="detail-value">{selectedPackage.shopId}</span>
                     </div>
                   )}
-                  {selectedPackage.updateTime && (
-                    <div className="detail-row">
-                      <span className="detail-label">Last Updated:</span>
-                      <span className="detail-value">{formatDate(selectedPackage.updateTime)}</span>
-                    </div>
-                  )}
+                  {/* Removing the Last Updated section */}
                   {/* Always show shipping label section */}
                   <div className="detail-row">
                     <span className="detail-label">Shipping Label:</span>
