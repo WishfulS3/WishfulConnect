@@ -164,19 +164,27 @@ const OrdersPage = () => {
   };
 
   // Filter orders based on search term and status filter
-  const filteredOrders = orders.filter(order => {
-    // Filter by search term
-    const matchesSearch = searchTerm === '' || 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.customer?.name && order.customer.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    // Filter by status - case insensitive comparison
-    const matchesStatus = filterStatus === 'all' || 
-      order.status?.toUpperCase() === filterStatus.toUpperCase();
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = orders
+    .filter(order => {
+      // Filter by search term
+      const matchesSearch = searchTerm === '' || 
+        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.customer?.name && order.customer.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      // Filter by status - case insensitive comparison
+      const matchesStatus = filterStatus === 'all' || 
+        order.status?.toUpperCase() === filterStatus.toUpperCase();
+      
+      return matchesSearch && matchesStatus;
+    })
+    // Sort orders by date (newest first)
+    .sort((a, b) => {
+      // Convert dates to timestamps for comparison
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA; // Descending order (newest first)
+    });
 
   // Format date helper
   const formatDate = (dateString) => {
