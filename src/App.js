@@ -11,6 +11,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import './styles/main.css';
 import { Amplify } from 'aws-amplify';
 import awsConfig from './aws-config';
+import SchedulePage from './pages/SchedulePage';
 
 // Initialize Amplify with your configuration
 Amplify.configure(awsConfig);
@@ -32,6 +33,8 @@ const RedirectIfAuthenticated = ({ children }) => {
   
   return isAuthenticated() ? <Navigate to="/" /> : children;
 };
+
+
 
 function App() {
   return (
@@ -65,6 +68,8 @@ function App() {
           } />
           <Route path="/tiktok/callback" element={<TikTokCallbackPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          // Then in your Routes section, add:
+          <Route path="/schedules" element={<SchedulePage />} />
         </Routes>
       </Router>
     </AuthProvider>

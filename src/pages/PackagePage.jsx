@@ -189,16 +189,39 @@ const PackagePage = () => {
       
       window.alert(`Package ${packageId} has been shipped successfully!`);
       
+      // Close the modal after successful shipping
+      setShowModal(false);
+      
       // Refresh packages list to show updated status
       const packagesResult = await fetchPackages(currentPage, packagesPerPage);
       setPackages(packagesResult.packages);
       setTotalPages(packagesResult.totalPages);
       
-      // Update the selected package if it's currently displayed
-      if (selectedPackage && selectedPackage.id === packageId) {
-        const updatedPackage = packagesResult.packages.find(p => p.id === packageId);
-        setSelectedPackage(updatedPackage || { ...selectedPackage, isShipping: false });
-      }
+      // Set up auto-refresh interval for 30 seconds to check for status updates
+      const refreshInterval = setInterval(async () => {
+        try {
+          console.log('Auto-refreshing package list...');
+          const refreshResult = await fetchPackages(currentPage, packagesPerPage);
+          setPackages(refreshResult.packages);
+          setTotalPages(refreshResult.totalPages);
+          
+          // Check if the shipped package status has been updated
+          const shippedPackage = refreshResult.packages.find(p => p.id === packageId);
+          if (shippedPackage && shippedPackage.status === 'SHIPPED') {
+            console.log('Package status updated to SHIPPED, stopping auto-refresh');
+            clearInterval(refreshInterval);
+          }
+        } catch (refreshErr) {
+          console.error('Error during auto-refresh:', refreshErr);
+          clearInterval(refreshInterval);
+        }
+      }, 5000); // Check every 5 seconds
+      
+      // Clear the interval after 30 seconds regardless
+      setTimeout(() => {
+        clearInterval(refreshInterval);
+        console.log('Auto-refresh stopped after timeout');
+      }, 30000);
     } catch (err) {
       console.error('Error shipping package:', err);
       window.alert('Failed to ship package, please try again.');

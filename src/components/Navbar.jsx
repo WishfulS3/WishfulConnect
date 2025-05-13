@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import '../styles/main.css';
 import { signOut } from 'aws-amplify/auth';
 
@@ -31,6 +31,7 @@ const Navbar = () => {
           <Link to="/" className="nav-link">Home</Link>
           <Link to="/orders" className="nav-link">Orders</Link>
           <Link to="/packages" className="nav-link">Packages</Link>
+          <Link to="/schedules" className="nav-link">Pickups</Link>
           <Link to="/tiktok/connect" className="nav-link">Connect TikTok</Link>
           <button onClick={handleLogout} className="nav-btn nav-btn-logout">Logout</button>
         </div>
